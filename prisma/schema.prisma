@@ -1,0 +1,183 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  walletAddress String    @unique  // Ethereum wallet address
+  name          String?
+  email         String?   @unique
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  groups        GroupMember[]
+  expenses      Expense[]       @relation("ExpenseCreator")
+  payments      Payment[]       @relation("PaymentMaker")
+  receivables   Payment[]       @relation("PaymentReceiver")
+  shares        ExpenseShare[]
+  
+  // MPC Wallet specific
+  keyShares     WalletKeyShare[]
+  signatures    WalletSignature[]
+}
+
+model Group {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Group wallet details
+  walletAddress String?  @unique
+  threshold     Int?     // Number of signatures required
+  chainId       Int?     // Blockchain network ID
+
+  // Relations
+  members     GroupMember[]
+  expenses    Expense[]
+  wallet      GroupWallet?
+}
+
+model GroupMember {
+  id        String    @id @default(cuid())
+  role      GroupRole @default(MEMBER)
+  joinedAt  DateTime  @default(now())
+  
+  // Relations
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  group     Group     @relation(fields: [groupId], references: [id])
+  groupId   String
+
+  @@unique([userId, groupId])
+}
+
+model Expense {
+  id          String    @id @default(cuid())
+  amount      Decimal
+  description String
+  category    String
+  location    String?
+  date        DateTime  @default(now())
+  status      ExpenseStatus @default(PENDING)
+  
+  // ML-related fields
+  mlCategory  String?   // Category assigned by ML
+  splitReason String?   // ML explanation for split
+
+  // Relations
+  creator     User      @relation("ExpenseCreator", fields: [creatorId], references: [id])
+  creatorId   String
+  group       Group     @relation(fields: [groupId], references: [id])
+  groupId     String
+  shares      ExpenseShare[]
+  payments    Payment[]
+}
+
+model ExpenseShare {
+  id          String    @id @default(cuid())
+  amount      Decimal
+  percentage  Float     // Share percentage
+  isPaid      Boolean   @default(false)
+  
+  // Relations
+  expense     Expense   @relation(fields: [expenseId], references: [id])
+  expenseId   String
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+
+  @@unique([expenseId, userId])
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  amount        Decimal
+  description   String?
+  status        PaymentStatus @default(PENDING)
+  transactionHash String?  // Blockchain transaction hash
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  expense       Expense?  @relation(fields: [expenseId], references: [id])
+  expenseId     String?
+  payer         User      @relation("PaymentMaker", fields: [payerId], references: [id])
+  payerId       String
+  receiver      User      @relation("PaymentReceiver", fields: [receiverId], references: [id])
+  receiverId    String
+  signatures    WalletSignature[]
+}
+
+// MPC Wallet related models
+model GroupWallet {
+  id            String    @id @default(cuid())
+  address       String    @unique
+  threshold     Int       // Number of signatures required
+  chainId       Int       // Blockchain network ID
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  group         Group     @relation(fields: [groupId], references: [id])
+  groupId       String    @unique
+  keyShares     WalletKeyShare[]
+  signatures    WalletSignature[]
+}
+
+model WalletKeyShare {
+  id            String    @id @default(cuid())
+  encryptedShare String   // Encrypted key share
+  shareIndex     Int
+  
+  // Relations
+  wallet        GroupWallet @relation(fields: [walletId], references: [id])
+  walletId      String
+  holder        User     @relation(fields: [holderId], references: [id])
+  holderId      String
+
+  @@unique([walletId, holderId])
+}
+
+model WalletSignature {
+  id            String    @id @default(cuid())
+  signature     String
+  timestamp     DateTime  @default(now())
+  
+  // Relations
+  wallet        GroupWallet @relation(fields: [walletId], references: [id])
+  walletId      String
+  signer        User     @relation(fields: [signerId], references: [id])
+  signerId      String
+  payment       Payment   @relation(fields: [paymentId], references: [id])
+  paymentId     String
+
+  @@unique([walletId, signerId, paymentId])
+}
+
+enum GroupRole {
+  ADMIN
+  MEMBER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  AWAITING_SIGNATURES
+  PROCESSING
+  COMPLETED
+  FAILED
+}
