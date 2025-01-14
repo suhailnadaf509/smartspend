@@ -1,16 +1,15 @@
 "use client";
 
 import { Bell } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenu,
 } from "@/components/ui/dropdown-menu";
 
 const notifications = [

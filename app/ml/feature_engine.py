@@ -10,7 +10,8 @@ import datetime
 from dataclasses import dataclass
 import logging
 
-
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 class FeatureExtractor:
     """Handle all feature engineering tasks"""
     
